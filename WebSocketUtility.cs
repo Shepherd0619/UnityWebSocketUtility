@@ -101,7 +101,14 @@ public class WebSocketUtility
 					var js = new JsonSerializer();
 					js.Deserialize(new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(data)));
 					// 这块也需要用try catch，以防有哈皮自己写的OnReceiveJson报空导致本脚本跟着一起寄。
-					OnReceiveJson.Invoke(data);
+					try
+					{
+						OnReceiveJson.Invoke(data);
+					}
+					catch (Exception ex)
+					{
+						OverwatchLog.Error($"[{GetType()}.ReceiveData] Error when invoke OnReceiveJson.\n{ex}");
+					}
 				}
 				catch
 				{
