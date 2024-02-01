@@ -29,6 +29,19 @@ public class WebSocketUtility
 			return;
 
 		ws?.Dispose();
+		
+		if (HeartbeatCoroutine != null)
+		{
+			HttpManager.Instance.StopCoroutine(HeartbeatCoroutine);
+
+			HeartbeatCoroutine = null;
+		}
+
+		if (ReceiveDataCoroutine != null)
+		{
+			HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
+		}
+
 
 		ws = new ClientWebSocket();
 		ws.Options.AddSubProtocol($"access_token, {PlayerPrefs.GetString("localJwt")}");
@@ -44,19 +57,7 @@ public class WebSocketUtility
 		}
 
 		OverwatchLog.Log($"[{GetType()}.Connect] Connected!");
-
-		if (HeartbeatCoroutine != null)
-		{
-			HttpManager.Instance.StopCoroutine(HeartbeatCoroutine);
-
-			HeartbeatCoroutine = null;
-		}
-
-		if (ReceiveDataCoroutine != null)
-		{
-			HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
-		}
-
+		
 		HeartbeatCoroutine = HttpManager.Instance.StartCoroutine(Heartbeat());
 		ReceiveDataCoroutine = HttpManager.Instance.StartCoroutine(ReceiveData());
 	}
