@@ -60,4 +60,5 @@ wsUtility.Disconnect();
 - [OverwatchLogger](https://github.com/Shepherd0619/OverwatchUnityLogger)
 
 ## Tips
-At line 34, I used Sec-WebSocket-Protocol to send the JWT token to server for authentication. You should change it according to your scenario.
+1. At line 34, I used Sec-WebSocket-Protocol to send the JWT token to server for authentication. You should change it according to your scenario.
+2. In Connect(), you may notice I used an instance of Monobehaviour to host Heartbeat and ReceiveData coroutines. You should replace it according to your scenario. It should be something that always active in the scene. (aka DontDestroyOnLoad)
