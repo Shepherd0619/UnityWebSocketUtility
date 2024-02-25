@@ -47,7 +47,16 @@ public class WebSocketUtility
 		ws.Options.AddSubProtocol($"access_token, {PlayerPrefs.GetString("localJwt")}");
 
 		OverwatchLog.Log($"[{GetType()}.Connect] Establishing connection to server......");
-		await ws.ConnectAsync(Uri, CancellationToken.None);
+		try
+		{
+			await ws.ConnectAsync(Uri, CancellationToken.None);
+		}
+		catch(Exception ex)
+		{
+			OverwatchLog.Error($"[{GetType()}.Connect] Exception on ws.ConnectAsync.\n{ex}");
+			Connect();
+		}
+		
 		if (ws.State != WebSocketState.Open)
 		{
 			OverwatchLog.Error($"[{GetType()}.Connect] Failed to connect! \n{ws.CloseStatusDescription}");
