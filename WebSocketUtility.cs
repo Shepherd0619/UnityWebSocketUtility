@@ -7,6 +7,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
+using SimpleJSON;
 using UnityEngine;
 
 public class WebSocketUtility
