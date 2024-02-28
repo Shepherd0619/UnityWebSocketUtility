@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 
 public class WebSocketUtility
 {
+	public Uri Uri = new("wss://example.com/ws");
 	public ClientWebSocket ws;
 	public Coroutine HeartbeatCoroutine;
 	public Coroutine ReceiveDataCoroutine;
