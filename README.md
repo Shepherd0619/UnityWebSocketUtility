@@ -59,3 +59,6 @@ wsUtility.Disconnect();
 - SimpleJSON
 - Newtonsoft.Json
 - [OverwatchLogger](https://github.com/Shepherd0619/OverwatchUnityLogger)
+
+## Tips
+1. You may notice HttpManager (from Biozone.Networking). It's just an empty Monobehaviour whose mission is host coroutines. You can replace it with your own.
