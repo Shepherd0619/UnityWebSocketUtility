@@ -105,7 +105,8 @@ public class WebSocketUtility
         }
 
         ws = new ClientWebSocket();
-        ws.Options.AddSubProtocol($"access_token, {Token}");
+        //ws.Options.AddSubProtocol($"access_token, {Token}");
+		ws.Options.SetRequestHeader("Authorization", Token);
 
         OverwatchLog.Log($"[{GetType()}.Connect] Establishing connection to server......");
         try
@@ -115,6 +116,7 @@ public class WebSocketUtility
         catch (Exception ex)
         {
             OverwatchLog.Error($"[{GetType()}.Connect] Exception on ws.ConnectAsync.\n{ex}");
+			OnDisconnected?.Invoke();
             Connect();
         }
 
