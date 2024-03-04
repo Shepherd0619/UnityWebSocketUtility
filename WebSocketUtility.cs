@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
+using Biozone.Networking;
 using Newtonsoft.Json;
 using SimpleJSON;
 using UnityEngine;
@@ -13,11 +14,17 @@ using UnityEngine;
 public class WebSocketUtility
 {
     public Uri Uri;
+    public string Token;
     public ClientWebSocket ws;
     public Coroutine HeartbeatCoroutine;
     public Coroutine ReceiveDataCoroutine;
+    public Coroutine CheckWebSocketCoroutine;
     private List<string> m_Datalist = new List<string>();
-    public Action<string> OnReceiveJson;
+    //public Action<string> OnReceiveJson;
+    public Action OnConnected;
+	public Action OnDisconnected;
+
+	public bool Reconnect = true;
 
     // 按照协议头分类回调
     private readonly Dictionary<string, Action<string>> _protocolCallbacks =
@@ -61,9 +68,11 @@ public class WebSocketUtility
         }
     }
 
-    public WebSocketUtility(Uri address)
+    public WebSocketUtility(Uri address, string token, bool reconnect = true)
     {
         Uri = address;
+        Token = token;
+        Reconnect = reconnect;
         Connect();
     }
 
@@ -84,10 +93,19 @@ public class WebSocketUtility
         if (ReceiveDataCoroutine != null)
         {
             HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
+
+			ReceiveDataCoroutine = null;
+        }
+
+        if (CheckWebSocketCoroutine != null)
+        {
+			HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
+
+			CheckWebSocketCoroutine = null;
         }
 
         ws = new ClientWebSocket();
-        ws.Options.AddSubProtocol($"access_token, {PlayerPrefs.GetString("localJwt")}");
+        ws.Options.AddSubProtocol($"access_token, {Token}");
 
         OverwatchLog.Log($"[{GetType()}.Connect] Establishing connection to server......");
         try
@@ -112,13 +130,59 @@ public class WebSocketUtility
 
         OverwatchLog.Log($"[{GetType()}.Connect] Connected!");
 
+        try
+        {
+	        OnConnected?.Invoke();
+        }
+        catch (Exception ex)
+        {
+			OverwatchLog.Error($"[{GetType()}.Connect] ERROR when invoke OnConnected. {ex}");
+        }
+
         HeartbeatCoroutine = HttpManager.Instance.StartCoroutine(Heartbeat());
         ReceiveDataCoroutine = HttpManager.Instance.StartCoroutine(ReceiveData());
     }
 
     public void Disconnect()
     {
-        ws?.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client closed", default);
+	    try
+	    {
+		    ws?.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client closed", default);
+	    }
+	    catch
+	    {
+			ws?.Abort();
+	    }
+        
+        try
+        {
+	        OnDisconnected?.Invoke();
+        }
+        catch (Exception ex)
+        {
+			OverwatchLog.Error($"[{GetType()}.Disconnect] ERROR when invoke OnDisconnected. {ex}");
+        }
+
+        ws?.Dispose();
+
+        if (HeartbeatCoroutine != null)
+        {
+	        HttpManager.Instance.StopCoroutine(HeartbeatCoroutine);
+
+	        HeartbeatCoroutine = null;
+        }
+
+        if (ReceiveDataCoroutine != null)
+        {
+	        HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
+        }
+
+        if (CheckWebSocketCoroutine != null)
+        {
+	        HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
+
+	        CheckWebSocketCoroutine = null;
+        }
     }
 
     public void Send(string message)
@@ -190,7 +254,7 @@ public class WebSocketUtility
         }
     }
 
-    IEnumerator Heartbeat()
+    protected IEnumerator Heartbeat()
     {
         int retryCount = 0;
         while (ws is { State: WebSocketState.Open })
@@ -219,19 +283,32 @@ public class WebSocketUtility
             {
                 // 5次都没回应，铁定寄了，抓紧主动重连。
                 OverwatchLog.Error(
-                    $"[{GetType()}.Heartbeat] It looks like server no response after tried 5 times. Gotta reconnect!"
+                    $"[{GetType()}.Heartbeat] It looks like server no response after tried 5 times."
                 );
 
-                Connect();
+                if (Reconnect)
+                {
+	                Disconnect();
+	                Connect();
+                }
+
                 yield break;
             }
         }
+    }
 
-        OverwatchLog.Error(
-            $"[{GetType()}.Heartbeat] Connection {ws.State}! \n{ws.CloseStatusDescription}"
-        );
+    protected IEnumerator CheckWebSocketStatus()
+    {
+	    while (ws is { State: WebSocketState.Open })
+	    {
+		    yield return new WaitForSecondsRealtime(1.0f);
+	    }
 
-        Connect();
+	    if (Reconnect)
+	    {
+			Disconnect();
+			Connect();
+	    }
     }
 
     /// <summary>
