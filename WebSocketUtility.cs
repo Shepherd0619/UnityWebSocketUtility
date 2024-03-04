@@ -141,6 +141,7 @@ public class WebSocketUtility
 
         HeartbeatCoroutine = HttpManager.Instance.StartCoroutine(Heartbeat());
         ReceiveDataCoroutine = HttpManager.Instance.StartCoroutine(ReceiveData());
+        CheckWebSocketCoroutine = HttpManager.Instance.StartCoroutine(CheckWebSocketStatus());
     }
 
     public void Disconnect()
