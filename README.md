@@ -33,12 +33,11 @@ string message = "Hello, server!";
 wsUtility.Send(message);
 ```
 
-4. Handle received JSON data by subscribing to the `OnReceiveJson` event.
-
+4. Handle received JSON datab by ~~subscribing to the `OnReceiveJson` event.~~ registering callback with protocol.
 ```csharp
-wsUtility.OnReceiveJson += HandleReceivedJson;
+wsUtility.RegisterProtocolCallback("HELLO_WORLD", HelloWorld);
 
-private void HandleReceivedJson(string jsonData)
+private void HelloWorld(string data)
 {
     // Process the received JSON data
 }
