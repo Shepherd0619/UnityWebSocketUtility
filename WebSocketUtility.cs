@@ -178,6 +178,8 @@ public class WebSocketUtility
         if (ReceiveDataCoroutine != null)
         {
 	        HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
+
+		    ReceiveDataCoroutine = null;
         }
 
         if (CheckWebSocketCoroutine != null)
