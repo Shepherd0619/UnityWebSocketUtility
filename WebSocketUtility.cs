@@ -20,11 +20,11 @@ public class WebSocketUtility
     public Coroutine ReceiveDataCoroutine;
     public Coroutine CheckWebSocketCoroutine;
     private List<string> m_Datalist = new List<string>();
-    //public Action<string> OnReceiveJson;
+    private bool m_StartCacheWebSocketData = false;
     public Action OnConnected;
-	public Action OnDisconnected;
+    public Action OnDisconnected;
 
-	public bool Reconnect = true;
+    public bool Reconnect = true;
 
     // 按照协议头分类回调
     private readonly Dictionary<string, Action<string>> _protocolCallbacks =
@@ -94,19 +94,19 @@ public class WebSocketUtility
         {
             HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
 
-			ReceiveDataCoroutine = null;
+            ReceiveDataCoroutine = null;
         }
 
         if (CheckWebSocketCoroutine != null)
         {
-			HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
+            HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
 
-			CheckWebSocketCoroutine = null;
+            CheckWebSocketCoroutine = null;
         }
 
         ws = new ClientWebSocket();
         //ws.Options.AddSubProtocol($"access_token, {Token}");
-		ws.Options.SetRequestHeader("Authorization", Token);
+        ws.Options.SetRequestHeader("Authorization", Token);
 
         OverwatchLog.Log($"[{GetType()}.Connect] Establishing connection to server......");
         try
@@ -116,7 +116,7 @@ public class WebSocketUtility
         catch (Exception ex)
         {
             OverwatchLog.Error($"[{GetType()}.Connect] Exception on ws.ConnectAsync.\n{ex}");
-			OnDisconnected?.Invoke();
+            OnDisconnected?.Invoke();
             Connect();
         }
 
@@ -134,11 +134,11 @@ public class WebSocketUtility
 
         try
         {
-	        OnConnected?.Invoke();
+            OnConnected?.Invoke();
         }
         catch (Exception ex)
         {
-			OverwatchLog.Error($"[{GetType()}.Connect] ERROR when invoke OnConnected. {ex}");
+            OverwatchLog.Error($"[{GetType()}.Connect] ERROR when invoke OnConnected. {ex}");
         }
 
         HeartbeatCoroutine = HttpManager.Instance.StartCoroutine(Heartbeat());
@@ -148,45 +148,47 @@ public class WebSocketUtility
 
     public void Disconnect()
     {
-	    try
-	    {
-		    ws?.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client closed", default);
-	    }
-	    catch
-	    {
-			ws?.Abort();
-	    }
-        
         try
         {
-	        OnDisconnected?.Invoke();
+            ws?.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client closed", default);
+        }
+        catch
+        {
+            ws?.Abort();
+        }
+
+        try
+        {
+            OnDisconnected?.Invoke();
         }
         catch (Exception ex)
         {
-			OverwatchLog.Error($"[{GetType()}.Disconnect] ERROR when invoke OnDisconnected. {ex}");
+            OverwatchLog.Error($"[{GetType()}.Disconnect] ERROR when invoke OnDisconnected. {ex}");
         }
 
         ws?.Dispose();
+        m_StartCacheWebSocketData = false;
+        m_Datalist.Clear();
 
         if (HeartbeatCoroutine != null)
         {
-	        HttpManager.Instance.StopCoroutine(HeartbeatCoroutine);
+            HttpManager.Instance.StopCoroutine(HeartbeatCoroutine);
 
-	        HeartbeatCoroutine = null;
+            HeartbeatCoroutine = null;
         }
 
         if (ReceiveDataCoroutine != null)
         {
-	        HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
+            HttpManager.Instance.StopCoroutine(ReceiveDataCoroutine);
 
-		    ReceiveDataCoroutine = null;
+            ReceiveDataCoroutine = null;
         }
 
         if (CheckWebSocketCoroutine != null)
         {
-	        HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
+            HttpManager.Instance.StopCoroutine(CheckWebSocketCoroutine);
 
-	        CheckWebSocketCoroutine = null;
+            CheckWebSocketCoroutine = null;
         }
     }
 
@@ -225,7 +227,9 @@ public class WebSocketUtility
                 if (string.IsNullOrWhiteSpace(data))
                     continue;
 
-                m_Datalist.Add(data);
+                if(m_StartCacheWebSocketData)
+                    m_Datalist.Add(data);
+                
                 try
                 {
                     // 检查是否为有效json，然后再下放广播
@@ -233,19 +237,6 @@ public class WebSocketUtility
                     js.Deserialize(
                         new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(data))
                     );
-
-					// Obsolete
-                    // 这块也需要用try catch，以防有哈皮自己写的OnReceiveJson报空导致本脚本跟着一起寄。
-                    // try
-                    // {
-                    //     OnReceiveJson.Invoke(data);
-                    // }
-                    // catch (Exception ex)
-                    // {
-                    //     OverwatchLog.Error(
-                    //         $"[{GetType()}.ReceiveData] Error when invoke OnReceiveJson.\n{ex}"
-                    //     );
-                    // }
 
                     var action = JSONNode.Parse(data)["action"];
                     // 按照协议头Invoke回调
@@ -266,23 +257,22 @@ public class WebSocketUtility
         {
             OverwatchLog.Log($"[{GetType()}.Heartbeat] Ping!");
             Send("ping");
-
-            int index = Mathf.Max(0, m_Datalist.Count - 1);
+            m_StartCacheWebSocketData = true;
             bool hasPong = false;
             yield return new WaitForSecondsRealtime(5.0f);
-            // 检查最新列表的最后一项到index之间的数据是否存在"pong"
-            for (int i = index + 1; i < m_Datalist.Count; i++)
+            hasPong = m_Datalist.Contains("pong");
+            if (hasPong)
             {
-                if (m_Datalist[i] == "pong")
-                {
-                    hasPong = true;
-                    OverwatchLog.Log($"[{GetType()}.Heartbeat] Pong detected in m_Datalist!");
-                    break; // 存在"pong"，退出循环
-                }
+                m_StartCacheWebSocketData = false;
+                m_Datalist.Clear();
+                OverwatchLog.Log($"[{GetType()}.Heartbeat] Pong detected in m_Datalist!");
+                continue;
             }
 
-            if (!hasPong)
-                retryCount++;
+            retryCount++;
+
+            m_StartCacheWebSocketData = false;
+			m_Datalist.Clear();
 
             if (retryCount > 4)
             {
@@ -293,8 +283,8 @@ public class WebSocketUtility
 
                 if (Reconnect)
                 {
-	                Disconnect();
-	                Connect();
+                    Disconnect();
+                    Connect();
                 }
 
                 yield break;
@@ -304,16 +294,16 @@ public class WebSocketUtility
 
     protected IEnumerator CheckWebSocketStatus()
     {
-	    while (ws is { State: WebSocketState.Open })
-	    {
-		    yield return new WaitForSecondsRealtime(1.0f);
-	    }
+        while (ws is { State: WebSocketState.Open })
+        {
+            yield return new WaitForSecondsRealtime(1.0f);
+        }
 
-	    if (Reconnect)
-	    {
-			Disconnect();
-			Connect();
-	    }
+        if (Reconnect)
+        {
+            Disconnect();
+            Connect();
+        }
     }
 
     /// <summary>
