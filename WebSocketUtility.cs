@@ -21,8 +21,8 @@ public class WebSocketUtility
     public Coroutine CheckWebSocketCoroutine;
     private List<string> m_Datalist = new List<string>();
     private bool m_StartCacheWebSocketData = false;
-    public Action OnConnected;
-    public Action OnDisconnected;
+    public event Action OnConnected;
+    public event Action OnDisconnected;
 
     public bool Reconnect = true;
 
